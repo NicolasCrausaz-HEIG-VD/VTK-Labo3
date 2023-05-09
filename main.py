@@ -90,21 +90,24 @@ def source1(skinMapper, bonesMapper, skinFilter, bonesFilter):
     bonesActor.GetProperty().SetSpecularPower(120.0)
 
     clipTransf = vtk.vtkTransform()
-    clipTransf.Translate(-50, 0, -120)
+    clipTransf.Translate(-70, -50, -100)
 
     sphere = vtk.vtkSphere()
-    sphere.SetRadius(65)
+    sphere.SetRadius(50)
     sphere.SetTransform(clipTransf)
 
-    # add mapper to display the shape of the sphere
-    # sphereMapper = vtk.vtkPolyDataMapper()
-    # sphereMapper.SetInputConnection(sphere.GetOutputPort())
+    sphereSource = vtk.vtkSphereSource()
+    sphereSource.SetRadius(50)
+    sphereSource.SetCenter(70, 50, 100)
+    sphereSource.Update()
 
-    # add actor to display the shape of the sphere
-    # sphereActor = vtk.vtkActor()
-    # sphereActor.SetMapper(sphereMapper)
-    # sphereActor.GetProperty().SetColor(colors.GetColor3d('Gray'))
-    # sphereActor.GetProperty().SetOpacity(0.3)
+    sphereMapper = vtk.vtkPolyDataMapper()
+    sphereMapper.SetInputConnection(sphereSource.GetOutputPort())
+
+    sphereActor = vtkActor()
+    sphereActor.SetMapper(sphereMapper)
+    sphereActor.GetProperty().SetOpacity(0.5)
+    sphereActor.GetProperty().BackfaceCullingOn()
 
 
     clipper = vtk.vtkClipPolyData()
@@ -115,7 +118,7 @@ def source1(skinMapper, bonesMapper, skinFilter, bonesFilter):
     clipper.SetValue(0)
     skinMapper.SetInputConnection(clipper.GetOutputPort())
 
-    return skinActor, bonesActor
+    return skinActor, bonesActor, sphereActor
 
 
 def source2(skinMapper, bonesMapper, skinFilter, bonesFilter):
@@ -143,7 +146,7 @@ def source2(skinMapper, bonesMapper, skinFilter, bonesFilter):
     bonesActor.GetProperty().SetSpecularPower(120.0)
 
     clipTransf = vtk.vtkTransform()
-    clipTransf.Translate(-50, 0, -120)
+    clipTransf.Translate(-70, -50, -100)
 
     sphere = vtk.vtkSphere()
     sphere.SetRadius(50)
@@ -167,21 +170,6 @@ def source3(skinMapper, bonesMapper, skinFilter, bonesFilter):
     bonesActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
     bonesActor.GetProperty().SetSpecular(0.8)
     bonesActor.GetProperty().SetSpecularPower(120.0)
-
-    clipTransf = vtk.vtkTransform()
-    clipTransf.Translate(-50, 0, -120)
-
-    sphere = vtk.vtkSphere()
-    sphere.SetRadius(75)
-    sphere.SetTransform(clipTransf)
-
-    clipper = vtk.vtkClipPolyData()
-    clipper.SetInputConnection(skinFilter.GetOutputPort())
-    clipper.SetClipFunction(sphere)
-    clipper.GenerateClipScalarsOn()
-    clipper.GenerateClippedOutputOn()
-    clipper.SetValue(0)
-    skinMapper.SetInputConnection(clipper.GetOutputPort())
 
     tubeActor = create_skin_tubes(skinFilter, 20)
 
@@ -210,21 +198,6 @@ def source4(skinMapper, bonesMapper, skinFilter, bonesFilter):
     bonesActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
     bonesActor.GetProperty().SetSpecular(0.8)
     bonesActor.GetProperty().SetSpecularPower(120.0)
-
-    clipTransf = vtk.vtkTransform()
-    clipTransf.Translate(-50, 0, -120)
-
-    sphere = vtk.vtkSphere()
-    sphere.SetRadius(50)
-    sphere.SetTransform(clipTransf)
-
-    clipper = vtk.vtkClipPolyData()
-    clipper.SetInputConnection(skinFilter.GetOutputPort())
-    clipper.SetClipFunction(sphere)
-    clipper.GenerateClipScalarsOn()
-    clipper.GenerateClippedOutputOn()
-    clipper.SetValue(0)
-    skinMapper.SetInputConnection(clipper.GetOutputPort())
 
     return skinActor, bonesActor
 
