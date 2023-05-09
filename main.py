@@ -21,6 +21,44 @@ from vtkmodules.vtkFiltersSources import (
     vtkSphereSource
 )
 
+colors = vtkNamedColors()
+
+
+def get_sources_functions():
+    return [
+        source1,
+        source1,
+        source1,
+        source1
+    ]
+
+
+def source1(skinMapper, bonesMapper):
+    # Create a mapper and actor
+    skinActor = vtkActor()
+    skinActor.SetMapper(skinMapper)
+    skinActor.GetProperty().SetDiffuse(0.8)
+    skinActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
+    skinActor.GetProperty().SetSpecular(0.8)
+    skinActor.GetProperty().SetSpecularPower(120.0)
+    skinActor.GetProperty().SetOpacity(0.5)
+
+    backFaceProp = vtkProperty()
+    backFaceProp.SetDiffuseColor(colors.GetColor3d('Tomato'))
+    backFaceProp.SetSpecular(0.8)
+    backFaceProp.SetSpecularPower(120.0)
+    backFaceProp.SetOpacity(1.0)
+    skinActor.SetBackfaceProperty(backFaceProp)
+
+    bonesActor = vtkActor()
+    bonesActor.SetMapper(bonesMapper)
+    bonesActor.GetProperty().SetDiffuse(0.8)
+    bonesActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
+    bonesActor.GetProperty().SetSpecular(0.8)
+    bonesActor.GetProperty().SetSpecularPower(120.0)
+
+    return skinActor, bonesActor
+
 
 def main():
     InputFilename = "vw_knee.slc"
@@ -30,10 +68,10 @@ def main():
     reader.SetFileName(InputFilename)
     reader.Update()
 
-    colors = vtkNamedColors()
-    rw = vtkRenderWindow()
+
+    render_window = vtkRenderWindow()
     iren = vtkRenderWindowInteractor()
-    iren.SetRenderWindow(rw)
+    iren.SetRenderWindow(render_window)
 
     # Define viewport ranges.
     xmins = [0, .5, 0, .5]
@@ -42,14 +80,29 @@ def main():
     ymaxs = [0.5, 0.5, 1, 1]
 
     # Have some fun with colors.
-    ren_bkg = ['AliceBlue', 'GhostWhite', 'WhiteSmoke', 'Seashell']
-    actor_color = ['Bisque', 'RosyBrown', 'Goldenrod', 'Chocolate']
+    backgrounds = ['AliceBlue', 'GhostWhite', 'WhiteSmoke', 'Seashell']
 
-    # sources = get_sources()
+    skinFilter = vtkContourFilter()
+    skinFilter.SetInputConnection(reader.GetOutputPort())
+    skinFilter.SetValue(0, 50)
 
-    for i in range(4):
+    bonesFilter = vtkContourFilter()
+    bonesFilter.SetInputConnection(reader.GetOutputPort())
+    bonesFilter.SetValue(50, 72)
+
+    skinMapper = vtkPolyDataMapper()
+    skinMapper.SetInputConnection(skinFilter.GetOutputPort())
+    skinMapper.SetScalarVisibility(0)
+
+    bonesMapper = vtkPolyDataMapper()
+    bonesMapper.SetInputConnection(bonesFilter.GetOutputPort())
+    bonesMapper.SetScalarVisibility(0)
+
+    sources = get_sources_functions()
+
+    for i in range(len(sources)):
         ren = vtkRenderer()
-        rw.AddRenderer(ren)
+        render_window.AddRenderer(ren)
         ren.SetViewport(xmins[i], ymins[i], xmaxs[i], ymaxs[i])
 
         # Share the camera between viewports.
@@ -60,52 +113,14 @@ def main():
         else:
             ren.SetActiveCamera(camera)
 
-        # Create a mapper and actor
-        mapper = vtkPolyDataMapper()
-        mapper.SetInputConnection(reader.GetOutputPort())
-        skinFilter = vtkContourFilter()
-        skinFilter.SetInputConnection(reader.GetOutputPort())
-        skinFilter.SetValue(0, 50)
 
-        bonesFilter = vtkContourFilter()
-        bonesFilter.SetInputConnection(reader.GetOutputPort())
-        bonesFilter.SetValue(50, 72)
+        actors = sources[i](skinMapper, bonesMapper)
 
-        skinMapper = vtkPolyDataMapper()
-        skinMapper.SetInputConnection(skinFilter.GetOutputPort())
-        skinMapper.SetScalarVisibility(0)
+        for actor in actors:
+          ren.AddActor(actor)
 
-        bonesMapper = vtkPolyDataMapper()
-        bonesMapper.SetInputConnection(bonesFilter.GetOutputPort())
-        bonesMapper.SetScalarVisibility(0)
-
-        skinActor = vtkActor()
-        skinActor.SetMapper(skinMapper)
-        skinActor.GetProperty().SetDiffuse(0.8)
-        skinActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
-        skinActor.GetProperty().SetSpecular(0.8)
-        skinActor.GetProperty().SetSpecularPower(120.0)
-        skinActor.GetProperty().SetOpacity(0.5)
-
-        backFaceProp = vtkProperty()
-        backFaceProp.SetDiffuseColor(colors.GetColor3d('Tomato'))
-        backFaceProp.SetSpecular(0.8)
-        backFaceProp.SetSpecularPower(120.0)
-        backFaceProp.SetOpacity(1.0)
-        skinActor.SetBackfaceProperty(backFaceProp)
-
-        bonesActor = vtkActor()
-        bonesActor.SetMapper(bonesMapper)
-        bonesActor.GetProperty().SetDiffuse(0.8)
-        bonesActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-        bonesActor.GetProperty().SetSpecular(0.8)
-        bonesActor.GetProperty().SetSpecularPower(120.0)
-
-        actor = vtkActor()
-        actor.GetProperty().SetColor(colors.GetColor3d(actor_color[i]))
-        actor.SetMapper(mapper)
-        ren.AddActor(skinActor)
-        ren.AddActor(bonesActor)
+        # ren.AddActor(skinActor)
+        # ren.AddActor(bonesActor)
 
         cam1 = ren.GetActiveCamera()
         cam1.SetFocalPoint(0.0, 0.0, 0.0)
@@ -115,21 +130,22 @@ def main():
         ren.ResetCamera()
         ren.ResetCameraClippingRange()
 
-        ren.SetBackground(colors.GetColor3d(ren_bkg[i]))
-
+        ren.SetBackground(colors.GetColor3d(backgrounds[i]))
         ren.ResetCamera()
-        rw.Render()
-        rw.SetWindowName('MultipleViewPorts')
-        rw.SetSize(1200, 1200)
 
-        screen_size = rw.GetScreenSize()
-        window_size = rw.GetSize()
-        rw.SetPosition(
-            int((screen_size[0] - window_size[0]) / 2),
-            int((screen_size[1] - window_size[1]) / 2)
-        )
 
-    rw.Render()
+    render_window.Render()
+    render_window.SetWindowName('MultipleViewPorts')
+    render_window.SetSize(1200, 1200)
+    # render_window.SetWindowFocus(True)
+
+    screen_size = render_window.GetScreenSize()
+    window_size = render_window.GetSize()
+    render_window.SetPosition(
+        int((screen_size[0] - window_size[0]) / 2),
+        int((screen_size[1] - window_size[1]) / 2)
+    )
+
     iren.SetInteractorStyle(
         vtkmodules.vtkInteractionStyle.vtkInteractorStyleTrackballCamera()
     )
