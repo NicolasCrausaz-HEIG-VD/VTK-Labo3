@@ -1,8 +1,6 @@
-#!/usr/bin/env python
 
-# noinspection PyUnresolvedReferences
+import vtk
 import vtkmodules.vtkInteractionStyle
-# noinspection PyUnresolvedReferences
 import vtkmodules.vtkRenderingOpenGL2
 from vtkmodules.vtkCommonColor import vtkNamedColors
 from vtkmodules.vtkFiltersCore import vtkContourFilter
@@ -10,10 +8,11 @@ from vtkmodules.vtkFiltersModeling import vtkOutlineFilter
 from vtkmodules.vtkIOImage import vtkSLCReader
 from vtkmodules.vtkRenderingCore import (
     vtkActor,
+    vtkProperty,
     vtkPolyDataMapper,
     vtkRenderWindow,
     vtkRenderWindowInteractor,
-    vtkRenderer
+    vtkRenderer,
 )
 
 
@@ -31,25 +30,49 @@ def main():
     mapper = vtkPolyDataMapper()
     mapper.SetInputConnection(reader.GetOutputPort())
 
-    contourFilter = vtkContourFilter()
-    contourFilter.SetInputConnection(reader.GetOutputPort())
-    contourFilter.SetValue(50, 72)
-    # 50, 72
+    skinFilter = vtkContourFilter()
+    skinFilter.SetInputConnection(reader.GetOutputPort())
+    skinFilter.SetValue(0, 50)
+
+    bonesFilter = vtkContourFilter()
+    bonesFilter.SetInputConnection(reader.GetOutputPort())
+    bonesFilter.SetValue(50, 72)
 
     outliner = vtkOutlineFilter()
     outliner.SetInputConnection(reader.GetOutputPort())
     outliner.Update()
 
-    mapper = vtkPolyDataMapper()
-    mapper.SetInputConnection(contourFilter.GetOutputPort())
-    mapper.SetScalarVisibility(0)
+    skinMapper = vtkPolyDataMapper()
+    skinMapper.SetInputConnection(skinFilter.GetOutputPort())
+    skinMapper.SetScalarVisibility(0)
 
-    actor = vtkActor()
-    actor.SetMapper(mapper)
-    actor.GetProperty().SetDiffuse(0.8)
-    actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    actor.GetProperty().SetSpecular(0.8)
-    actor.GetProperty().SetSpecularPower(120.0)
+    bonesMapper = vtkPolyDataMapper()
+    bonesMapper.SetInputConnection(bonesFilter.GetOutputPort())
+    bonesMapper.SetScalarVisibility(0)
+
+    skinActor = vtkActor()
+    skinActor.SetMapper(skinMapper)
+    skinActor.GetProperty().SetDiffuse(0.8)
+    skinActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
+    skinActor.GetProperty().SetSpecular(0.8)
+    skinActor.GetProperty().SetSpecularPower(120.0)
+    skinActor.GetProperty().SetOpacity(0.5)
+
+    backFaceProp = vtkProperty()
+    backFaceProp.SetDiffuseColor(colors.GetColor3d('Tomato'))
+    backFaceProp.SetSpecular(0.8)
+    backFaceProp.SetSpecularPower(120.0)
+    backFaceProp.SetOpacity(1.0)
+    skinActor.SetBackfaceProperty(backFaceProp)
+    skinActor.GetProperty().BackfaceCullingOn()
+
+
+    bonesActor = vtkActor()
+    bonesActor.SetMapper(bonesMapper)
+    bonesActor.GetProperty().SetDiffuse(0.8)
+    bonesActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
+    bonesActor.GetProperty().SetSpecular(0.8)
+    bonesActor.GetProperty().SetSpecularPower(120.0)
 
     # Create a rendering window and renderer.
     renderer = vtkRenderer()
@@ -62,7 +85,8 @@ def main():
     renderWindowInteractor.SetRenderWindow(renderWindow)
 
     # Assign actor to the renderer.
-    renderer.AddActor(actor)
+    renderer.AddActor(bonesActor)
+    renderer.AddActor(skinActor)
     renderer.SetBackground(colors.GetColor3d('SlateGray'))
 
     # Pick a good view
@@ -78,10 +102,21 @@ def main():
     renderWindow.SetSize(640, 512)
     renderWindow.Render()
 
+    # Use trackball interaction style for easy mouse controll
+    
+    
+
     # Enable user interface interactor.
     renderWindowInteractor.Initialize()
     renderWindow.Render()
     renderWindowInteractor.Start()
+
+    # interactor = vtkRenderWindowInteractor()
+    # interactor.SetInteractorStyle(vtk.vtkInteractorStyleTrackballCamera())
+    # interactor.SetRenderWindow(renderWindowInteractor)
+    # renderWindowInteractor.Render()
+    # interactor.Initialize()
+    # interactor.Start()
 
 
 if __name__ == '__main__':
