@@ -6,6 +6,7 @@ from vtkmodules.vtkCommonColor import vtkNamedColors
 from vtkmodules.vtkIOImage import vtkSLCReader
 from vtkmodules.vtkFiltersCore import vtkContourFilter, vtkCutter, vtkTubeFilter
 from vtkmodules.vtkFiltersModeling import vtkOutlineFilter
+from vtkmodules.vtkCommonDataModel import vtkPlane
 from vtkmodules.vtkRenderingCore import (
     vtkActor,
     vtkProperty,
@@ -71,10 +72,7 @@ def source1(skinMapper, bonesMapper, skinFilter, bonesFilter):
     # Create a mapper and actor
     skinActor = vtkActor()
     skinActor.SetMapper(skinMapper)
-    skinActor.GetProperty().SetDiffuse(0.8)
     skinActor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
-    skinActor.GetProperty().SetSpecular(0.8)
-    skinActor.GetProperty().SetSpecularPower(120.0)
     skinActor.GetProperty().SetOpacity(1.0)
 
     backFaceProp = vtkProperty()
@@ -97,6 +95,17 @@ def source1(skinMapper, bonesMapper, skinFilter, bonesFilter):
     sphere = vtk.vtkSphere()
     sphere.SetRadius(65)
     sphere.SetTransform(clipTransf)
+
+    # add mapper to display the shape of the sphere
+    # sphereMapper = vtk.vtkPolyDataMapper()
+    # sphereMapper.SetInputConnection(sphere.GetOutputPort())
+
+    # add actor to display the shape of the sphere
+    # sphereActor = vtk.vtkActor()
+    # sphereActor.SetMapper(sphereMapper)
+    # sphereActor.GetProperty().SetColor(colors.GetColor3d('Gray'))
+    # sphereActor.GetProperty().SetOpacity(0.3)
+
 
     clipper = vtk.vtkClipPolyData()
     clipper.SetInputConnection(skinFilter.GetOutputPort())
@@ -223,7 +232,7 @@ def source4(skinMapper, bonesMapper, skinFilter, bonesFilter):
 def main():
     InputFilename = "vw_knee.slc"
 
-    # vtkSLCReader to read.
+    # vtkSLCReader to read the .slc file
     reader = vtkSLCReader()
     reader.SetFileName(InputFilename)
     reader.Update()
@@ -238,8 +247,7 @@ def main():
     ymins = [0, 0, 0.5, 0.5]
     ymaxs = [0.5, 0.5, 1, 1]
 
-    # Have some fun with colors.
-    backgrounds = ['AliceBlue', 'GhostWhite', 'WhiteSmoke', 'Seashell']
+    backgrounds = ['LightBlue', 'Gray', 'Pink', 'Green']
 
     sources = get_sources_functions()
 
@@ -256,10 +264,22 @@ def main():
         else:
             ren.SetActiveCamera(camera)
 
+        # Get the bounds of the data to specify the size of the cube
+        bounds = reader.GetOutput().GetBounds()
+
         wrapper = vtk.vtkCubeSource()
-        wrapper.SetXLength(1000.0)
-        wrapper.SetYLength(1500)
-        wrapper.SetZLength(2000)
+        wrapper.SetBounds(bounds)
+
+        edges = vtk.vtkExtractEdges()
+        edges.SetInputConnection(wrapper.GetOutputPort())
+
+        # Création du maillage et de l'acteur pour les arêtes
+        edgesMapper = vtk.vtkPolyDataMapper()
+        edgesMapper.SetInputConnection(edges.GetOutputPort())
+
+        edgesActor = vtk.vtkActor()
+        edgesActor.SetMapper(edgesMapper)
+        edgesActor.GetProperty().SetColor(0.0, 0.0, 0.0)
 
         wrapperMapper = vtk.vtkPolyDataMapper()
         wrapperMapper.SetInputConnection(wrapper.GetOutputPort())
@@ -267,14 +287,10 @@ def main():
         wrapperActor = vtk.vtkActor()
         wrapperActor.SetMapper(wrapperMapper)
 
-        # Couleur du parallélépipède (gris clair)
-        wrapperActor.GetProperty().SetColor(0.7, 0.7, 0.7)
-        # Transparence (0.0 = totalement transparent, 1.0 = totalement opaque)
-        wrapperActor.GetProperty().SetOpacity(0)
-        # Activation de la visibilité des arêtes
+        wrapperActor.GetProperty().SetColor(1, 1, 1)
+        wrapperActor.GetProperty().SetOpacity(0.2)
         wrapperActor.GetProperty().EdgeVisibilityOn()
-        wrapperActor.GetProperty().SetEdgeColor(
-            0.0, 0.0, 0.0)  # Couleur des arêtes (noir)
+        wrapperActor.GetProperty().SetEdgeColor(colors.GetColor3d('Black'))
 
         skinFilter = vtkContourFilter()
         skinFilter.SetInputConnection(reader.GetOutputPort())
@@ -294,7 +310,7 @@ def main():
 
         actors = sources[i](skinMapper, bonesMapper, skinFilter, bonesFilter)
 
-        #ren.AddActor(wrapperActor)
+        ren.AddActor(edgesActor)
 
         for actor in actors:
             ren.AddActor(actor)
