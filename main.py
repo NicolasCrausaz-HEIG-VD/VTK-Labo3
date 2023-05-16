@@ -69,16 +69,16 @@ def create_skin_tubes(skin_filter, spacing):
     return cutter_actor
 
 
-def get_sources_functions():
+def get_sources_functions(skin_mapper, bones_mapper, skin_filter):
     return [
-        source1,
-        source2,
-        source3,
-        source4
+        source1(skin_mapper, bones_mapper, skin_filter),
+        source2(skin_mapper, bones_mapper, skin_filter),
+        source3(bones_mapper, skin_filter),
+        source4(skin_mapper, bones_mapper)
     ]
 
 
-def source1(skin_mapper, bones_mapper, skin_filter, bones_filter):
+def source1(skin_mapper, bones_mapper, skin_filter):
     # Create a mapper and actor
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
@@ -130,7 +130,7 @@ def source1(skin_mapper, bones_mapper, skin_filter, bones_filter):
     return skin_actor, bones_actor, sphere_actor
 
 
-def source2(skin_mapper, bones_mapper, skin_filter, bones_filter):
+def source2(skin_mapper, bones_mapper, skin_filter):
     # Create a mapper and actor
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
@@ -170,7 +170,7 @@ def source2(skin_mapper, bones_mapper, skin_filter, bones_filter):
     return skin_actor, bones_actor
 
 
-def source3(skin_mapper, bones_mapper, skin_filter, bones_filter):
+def source3(bones_mapper, skin_filter):
     bones_actor = vtkActor()
     bones_actor.SetMapper(bones_mapper)
     bones_actor.GetProperty().SetDiffuse(0.8)
@@ -183,7 +183,7 @@ def source3(skin_mapper, bones_mapper, skin_filter, bones_filter):
     return bones_actor, tube_actor
 
 
-def source4(skin_mapper, bones_mapper, skin_filter, bones_filter):
+def source4(skin_mapper, bones_mapper):
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
     skin_actor.GetProperty().SetDiffuse(0.8)
@@ -229,7 +229,23 @@ def main():
 
     backgrounds = ['LightBlue', 'Gray', 'Pink', 'Green']
 
-    sources = get_sources_functions()
+    skin_filter = vtkContourFilter()
+    skin_filter.SetInputConnection(reader.GetOutputPort())
+    skin_filter.SetValue(0, 50)
+
+    bones_filter = vtkContourFilter()
+    bones_filter.SetInputConnection(reader.GetOutputPort())
+    bones_filter.SetValue(50, 72)
+
+    skin_mapper = vtkPolyDataMapper()
+    skin_mapper.SetInputConnection(skin_filter.GetOutputPort())
+    skin_mapper.SetScalarVisibility(0)
+
+    bones_mapper = vtkPolyDataMapper()
+    bones_mapper.SetInputConnection(bones_filter.GetOutputPort())
+    bones_mapper.SetScalarVisibility(0)
+
+    sources = get_sources_functions(skin_mapper, bones_mapper, skin_filter)
 
     for i in range(len(sources)):
         ren = vtkRenderer()
@@ -255,23 +271,7 @@ def main():
         edges_actor.SetMapper(edges_mapper)
         edges_actor.GetProperty().SetColor(colors.GetColor3d('Black'))
 
-        skin_filter = vtkContourFilter()
-        skin_filter.SetInputConnection(reader.GetOutputPort())
-        skin_filter.SetValue(0, 50)
-
-        bones_filter = vtkContourFilter()
-        bones_filter.SetInputConnection(reader.GetOutputPort())
-        bones_filter.SetValue(50, 72)
-
-        skin_mapper = vtkPolyDataMapper()
-        skin_mapper.SetInputConnection(skin_filter.GetOutputPort())
-        skin_mapper.SetScalarVisibility(0)
-
-        bones_mapper = vtkPolyDataMapper()
-        bones_mapper.SetInputConnection(bones_filter.GetOutputPort())
-        bones_mapper.SetScalarVisibility(0)
-
-        actors = sources[i](skin_mapper, bones_mapper, skin_filter, bones_filter)
+        actors = sources[i]
 
         ren.AddActor(edges_actor)
 
