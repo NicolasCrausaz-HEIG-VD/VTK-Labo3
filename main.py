@@ -1,3 +1,4 @@
+import os
 import vtk
 import vtkmodules.vtkInteractionStyle
 import vtkmodules.vtkRenderingOpenGL2
@@ -66,9 +67,9 @@ def create_skin_tubes(skin_filter, spacing):
 def get_sources_functions(gen_skin_mapper, gen_bones_mapper, skin_filter, bones_filter):
     return [
         source1(gen_skin_mapper, gen_bones_mapper, skin_filter),
-        source2(gen_skin_mapper, gen_bones_mapper, skin_filter),
+        source4(skin_filter, bones_filter),
         source3(gen_bones_mapper, skin_filter),
-        source4(gen_bones_mapper, skin_filter, bones_filter),
+        source2(gen_skin_mapper, gen_bones_mapper, skin_filter),
     ]
 
 
@@ -167,19 +168,39 @@ def source3(gen_bones_mapper, skin_filter):
     return bones_actor, tube_actor
 
 
-def source4(gen_bones_mapper, skin_filter, bones_filter):
-    bones_mapper = gen_bones_mapper();
-    # Compute distance between skin and bones
-    # distance_filter = vtkDistancePolyDataFilter()
-    # distance_filter.SetInputConnection(0, bones_filter.GetOutputPort())
-    # distance_filter.SetInputConnection(1, skin_filter.GetOutputPort())
-    # distance_filter.Update()
+def source4(skin_filter, bones_filter):
 
-    # Create a mapper and actor
+    distance_filter = None
 
-    bones_actor = get_bones_actor(bones_mapper)
+    if os.path.isfile("output.vtk"):
+        reader = vtk.vtkPolyDataReader()
+        reader.SetFileName("output.vtk")
+        reader.Update()
+        distance_filter = reader
+    else:
+        distance_filter = vtkDistancePolyDataFilter()
+        distance_filter.SetInputConnection(0, bones_filter.GetOutputPort())
+        distance_filter.SetInputConnection(1, skin_filter.GetOutputPort())
+        distance_filter.NegateDistanceOn()
+        distance_filter.Update()
+        write_filter_file(distance_filter)
+
+
+
+    bones_mapper = vtkPolyDataMapper()
+    bones_mapper.SetInputData(distance_filter.GetOutput())
+    bones_mapper.SetScalarRange(distance_filter.GetOutput().GetScalarRange())
+
+    bones_actor = vtkActor()
+    bones_actor.SetMapper(bones_mapper)
 
     return [bones_actor]
+
+def write_filter_file(distance_filter):
+  writer = vtk.vtkPolyDataWriter()
+  writer.SetFileName("output.vtk") 
+  writer.SetInputData(distance_filter.GetOutput()) 
+  writer.Write()
 
 
 def get_bones_actor(bones_mapper):
