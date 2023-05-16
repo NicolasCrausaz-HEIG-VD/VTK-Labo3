@@ -2,10 +2,10 @@ import vtk
 import vtkmodules.vtkInteractionStyle
 import vtkmodules.vtkRenderingOpenGL2
 from vtkmodules.vtkCommonColor import vtkNamedColors
-from vtkmodules.vtkIOImage import vtkSLCReader
-from vtkmodules.vtkFiltersCore import vtkContourFilter, vtkCutter, vtkTubeFilter
-from vtkmodules.vtkFiltersModeling import vtkOutlineFilter
 from vtkmodules.vtkCommonDataModel import vtkPlane
+from vtkmodules.vtkFiltersCore import vtkContourFilter, vtkCutter, vtkTubeFilter, vtkStripper, vtkAppendPolyData
+from vtkmodules.vtkFiltersModeling import vtkOutlineFilter
+from vtkmodules.vtkIOImage import vtkSLCReader
 from vtkmodules.vtkRenderingCore import (
     vtkActor,
     vtkProperty,
@@ -14,49 +14,58 @@ from vtkmodules.vtkRenderingCore import (
     vtkRenderWindowInteractor,
     vtkRenderer,
 )
-from vtkmodules.vtkFiltersSources import (
-    vtkConeSource,
-    vtkCubeSource,
-    vtkCylinderSource,
-    vtkSphereSource
-)
 
 colors = vtkNamedColors()
+colors.SetColor('Skin', [240, 184, 160, 255])
 
 
 def create_skin_tubes(skin_filter, spacing):
     skin_filter.Update()
     bounds = skin_filter.GetOutput().GetBounds()
-    plane = vtkPlane()
-    plane.SetOrigin((bounds[1] + bounds[0]) / 2.0,
-                    (bounds[3] + bounds[2]) / 2.0, bounds[4])
-    plane.SetNormal(0, 0, 1)
 
     number_of_cuts = int((bounds[5] - bounds[4]) / spacing)
 
-    # Create cutter
-    high = plane.EvaluateFunction(
-        (bounds[1] + bounds[0]) / 2.0, (bounds[3] + bounds[2]) / 2.0, bounds[5])
+    append_filter = vtkAppendPolyData()
 
-    cutter = vtkCutter()
-    cutter.SetInputConnection(skin_filter.GetOutputPort())  # Change this line
-    cutter.SetCutFunction(plane)
-    cutter.GenerateValues(number_of_cuts, 0.99, 0.99 * high)
+    for i in range(number_of_cuts):
+        # Create a plane at the desired height
+        plane = vtkPlane()
+        plane.SetOrigin((bounds[1] + bounds[0]) / 2.0,
+                        (bounds[3] + bounds[2]) / 2.0, bounds[4] + i * spacing)
+        plane.SetNormal(0, 0, 1)
 
-    # Add vtkTubeFilter to create tubes
-    tube_filter = vtkTubeFilter()
-    tube_filter.SetInputConnection(cutter.GetOutputPort())
-    tube_filter.SetRadius(0.5)  # Set the radius of the tubes
-    tube_filter.SetNumberOfSides(12)
-    tube_filter.CappingOn()
+        # Create cutter
+        cutter = vtkCutter()
+        cutter.SetInputConnection(skin_filter.GetOutputPort())
+        cutter.SetCutFunction(plane)
+        cutter.GenerateValues(1, 0.99, 0.99)
 
+        # Apply vtkStripper to generate polylines from the cutter
+        stripper = vtkStripper()
+        stripper.SetInputConnection(cutter.GetOutputPort())
+        stripper.Update()
+
+        # Add vtkTubeFilter to create tubes
+        tube_filter = vtkTubeFilter()
+        tube_filter.SetInputConnection(stripper.GetOutputPort())
+        tube_filter.SetRadius(0.5)
+        tube_filter.SetNumberOfSides(12)
+        tube_filter.CappingOn()
+
+        # Add each tube filter to the append filter
+        append_filter.AddInputConnection(tube_filter.GetOutputPort())
+
+    append_filter.Update()
+
+    # Create mapper and actor for the tubes
     cutter_mapper = vtkPolyDataMapper()
-    cutter_mapper.SetInputConnection(tube_filter.GetOutputPort())
+    cutter_mapper.SetInputConnection(append_filter.GetOutputPort())
     cutter_mapper.ScalarVisibilityOff()
 
     cutter_actor = vtkActor()
     cutter_actor.GetProperty().SetColor(vtkNamedColors().GetColor3d('Banana'))
     cutter_actor.SetMapper(cutter_mapper)
+
     return cutter_actor
 
 
@@ -73,7 +82,7 @@ def source1(skin_mapper, bones_mapper, skin_filter, bones_filter):
     # Create a mapper and actor
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
-    skin_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
+    skin_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Skin'))
     skin_actor.GetProperty().SetOpacity(1.0)
 
     back_face_prop = vtkProperty()
@@ -87,7 +96,7 @@ def source1(skin_mapper, bones_mapper, skin_filter, bones_filter):
     bones_actor.SetMapper(bones_mapper)
     bones_actor.GetProperty().SetDiffuse(0.8)
     bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    bones_actor.GetProperty().SetSpecular(0.8)
+    bones_actor.GetProperty().SetSpecular(0.5)
     bones_actor.GetProperty().SetSpecularPower(120.0)
 
     clip_transf = vtk.vtkTransform()
@@ -126,9 +135,7 @@ def source2(skin_mapper, bones_mapper, skin_filter, bones_filter):
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
     skin_actor.GetProperty().SetDiffuse(0.8)
-    skin_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
-    skin_actor.GetProperty().SetSpecular(0.8)
-    skin_actor.GetProperty().SetSpecularPower(120.0)
+    skin_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Skin'))
     skin_actor.GetProperty().SetOpacity(0.5)
 
     back_face_prop = vtkProperty()
@@ -142,7 +149,7 @@ def source2(skin_mapper, bones_mapper, skin_filter, bones_filter):
     bones_actor.SetMapper(bones_mapper)
     bones_actor.GetProperty().SetDiffuse(0.8)
     bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    bones_actor.GetProperty().SetSpecular(0.8)
+    bones_actor.GetProperty().SetSpecular(0.5)
     bones_actor.GetProperty().SetSpecularPower(120.0)
 
     clip_transf = vtk.vtkTransform()
@@ -167,8 +174,8 @@ def source3(skin_mapper, bones_mapper, skin_filter, bones_filter):
     bones_actor = vtkActor()
     bones_actor.SetMapper(bones_mapper)
     bones_actor.GetProperty().SetDiffuse(0.8)
-    bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Pink'))
-    bones_actor.GetProperty().SetSpecular(0.8)
+    bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
+    bones_actor.GetProperty().SetSpecular(0.5)
     bones_actor.GetProperty().SetSpecularPower(120.0)
 
     tube_actor = create_skin_tubes(skin_filter, 10)
@@ -196,7 +203,7 @@ def source4(skin_mapper, bones_mapper, skin_filter, bones_filter):
     bones_actor.SetMapper(bones_mapper)
     bones_actor.GetProperty().SetDiffuse(0.8)
     bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    bones_actor.GetProperty().SetSpecular(0.8)
+    bones_actor.GetProperty().SetSpecular(0.5)
     bones_actor.GetProperty().SetSpecularPower(120.0)
 
     return skin_actor, bones_actor
