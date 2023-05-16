@@ -48,7 +48,7 @@ def create_skin_tubes(skin_filter, spacing):
         # Add vtkTubeFilter to create tubes
         tube_filter = vtkTubeFilter()
         tube_filter.SetInputConnection(stripper.GetOutputPort())
-        tube_filter.SetRadius(0.5)
+        tube_filter.SetRadius(1)
         tube_filter.SetNumberOfSides(12)
         tube_filter.CappingOn()
 
@@ -63,7 +63,7 @@ def create_skin_tubes(skin_filter, spacing):
     cutter_mapper.ScalarVisibilityOff()
 
     cutter_actor = vtkActor()
-    cutter_actor.GetProperty().SetColor(vtkNamedColors().GetColor3d('Banana'))
+    cutter_actor.GetProperty().SetColor(colors.GetColor3d('Skin'))
     cutter_actor.SetMapper(cutter_mapper)
 
     return cutter_actor
@@ -72,9 +72,9 @@ def create_skin_tubes(skin_filter, spacing):
 def get_sources_functions(skin_mapper, bones_mapper, skin_filter):
     return [
         source1(skin_mapper, bones_mapper, skin_filter),
-        source2(skin_mapper, bones_mapper, skin_filter),
+        source4(skin_mapper, bones_mapper),
         source3(bones_mapper, skin_filter),
-        source4(skin_mapper, bones_mapper)
+        source2(skin_mapper, bones_mapper, skin_filter),
     ]
 
 
@@ -92,12 +92,7 @@ def source1(skin_mapper, bones_mapper, skin_filter):
     back_face_prop.SetOpacity(1.0)
     skin_actor.SetBackfaceProperty(back_face_prop)
 
-    bones_actor = vtkActor()
-    bones_actor.SetMapper(bones_mapper)
-    bones_actor.GetProperty().SetDiffuse(0.8)
-    bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    bones_actor.GetProperty().SetSpecular(0.5)
-    bones_actor.GetProperty().SetSpecularPower(120.0)
+    bones_actor = get_bones_actor(bones_mapper)
 
     clip_transf = vtk.vtkTransform()
     clip_transf.Translate(-70, -50, -100)
@@ -109,6 +104,7 @@ def source1(skin_mapper, bones_mapper, skin_filter):
     sphere_source = vtk.vtkSphereSource()
     sphere_source.SetRadius(50)
     sphere_source.SetCenter(70, 50, 100)
+    sphere_source.SetPhiResolution(100)
     sphere_source.Update()
 
     sphere_mapper = vtk.vtkPolyDataMapper()
@@ -145,12 +141,7 @@ def source2(skin_mapper, bones_mapper, skin_filter):
     back_face_prop.SetOpacity(1.0)
     skin_actor.SetBackfaceProperty(back_face_prop)
 
-    bones_actor = vtkActor()
-    bones_actor.SetMapper(bones_mapper)
-    bones_actor.GetProperty().SetDiffuse(0.8)
-    bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    bones_actor.GetProperty().SetSpecular(0.5)
-    bones_actor.GetProperty().SetSpecularPower(120.0)
+    bones_actor = get_bones_actor(bones_mapper)
 
     clip_transf = vtk.vtkTransform()
     clip_transf.Translate(-70, -50, -100)
@@ -171,42 +162,67 @@ def source2(skin_mapper, bones_mapper, skin_filter):
 
 
 def source3(bones_mapper, skin_filter):
-    bones_actor = vtkActor()
-    bones_actor.SetMapper(bones_mapper)
-    bones_actor.GetProperty().SetDiffuse(0.8)
-    bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    bones_actor.GetProperty().SetSpecular(0.5)
-    bones_actor.GetProperty().SetSpecularPower(120.0)
-
+    bones_actor = get_bones_actor(bones_mapper)
     tube_actor = create_skin_tubes(skin_filter, 10)
 
     return bones_actor, tube_actor
 
 
 def source4(skin_mapper, bones_mapper):
-    skin_actor = vtkActor()
-    skin_actor.SetMapper(skin_mapper)
-    skin_actor.GetProperty().SetDiffuse(0.8)
-    skin_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Green'))
-    skin_actor.GetProperty().SetSpecular(0.8)
-    skin_actor.GetProperty().SetSpecularPower(120.0)
-    skin_actor.GetProperty().SetOpacity(0.5)
+    bones_actor = get_bones_actor(bones_mapper)
 
-    back_face_prop = vtkProperty()
-    back_face_prop.SetDiffuseColor(colors.GetColor3d('Tomato'))
-    back_face_prop.SetSpecular(0.8)
-    back_face_prop.SetSpecularPower(120.0)
-    back_face_prop.SetOpacity(1.0)
-    skin_actor.SetBackfaceProperty(back_face_prop)
+    implicitPolyDataDistance = vtkImplicitPolyDataDistance()
+    implicitPolyDataDistance.SetInput(sphereSource.bones_actor())
 
+    signedDistanceMapper = vtkPolyDataMapper()
+
+    points = vtkPoints()
+    step = 0.1
+    for x in np.arange(-2, 2, step):
+        for y in np.arange(-2, 2, step):
+            for z in np.arange(-2, 2, step):
+                points.InsertNextPoint(x, y, z)
+
+    # Add distances to each point
+    signedDistances = vtkFloatArray()
+    signedDistances.SetNumberOfComponents(1)
+    signedDistances.SetName('SignedDistances')
+
+    # Evaluate the signed distance function at all of the grid points
+    for pointId in range(points.GetNumberOfPoints()):
+        p = points.GetPoint(pointId)
+        signedDistance = implicitPolyDataDistance.EvaluateFunction(p)
+        signedDistances.InsertNextValue(signedDistance)
+
+    polyData = vtkPolyData()
+    polyData.SetPoints(points)
+    polyData.GetPointData().SetScalars(signedDistances)
+
+    vertexGlyphFilter = vtkVertexGlyphFilter()
+    vertexGlyphFilter.SetInputData(polyData)
+    vertexGlyphFilter.Update()
+
+    signedDistanceMapper = vtkPolyDataMapper()
+    signedDistanceMapper.SetInputConnection(vertexGlyphFilter.GetOutputPort())
+    signedDistanceMapper.ScalarVisibilityOn()
+
+    signedDistanceActor = vtkActor()
+    signedDistanceActor.SetMapper(signedDistanceMapper)
+
+    # TODO: implicit data distance between bones and skin
+
+
+    return [bones_actor]
+
+
+def get_bones_actor(bones_mapper):
     bones_actor = vtkActor()
     bones_actor.SetMapper(bones_mapper)
     bones_actor.GetProperty().SetDiffuse(0.8)
     bones_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Ivory'))
-    bones_actor.GetProperty().SetSpecular(0.5)
-    bones_actor.GetProperty().SetSpecularPower(120.0)
-
-    return skin_actor, bones_actor
+    bones_actor.GetProperty().SetSpecular(0.1)
+    bones_actor.GetProperty().SetSpecularPower(40.0)
+    return bones_actor
 
 
 def main():
@@ -290,9 +306,8 @@ def main():
         ren.ResetCamera()
 
     render_window.Render()
-    render_window.SetWindowName('MultipleViewPorts')
+    render_window.SetWindowName('VTK - Labo 3')
     render_window.SetSize(1200, 1200)
-    # render_window.SetWindowFocus(True)
 
     screen_size = render_window.GetScreenSize()
     window_size = render_window.GetSize()
