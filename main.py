@@ -22,48 +22,40 @@ colors.SetColor('Skin', [240, 184, 160, 255])
 def create_skin_tubes(skin_filter, spacing):
     skin_filter.Update()
     bounds = skin_filter.GetOutput().GetBounds()
+    height = (bounds[5] - bounds[4])
+    number_of_cuts = int(height / spacing)
+    # Create a plane at the desired height
+    plane = vtkPlane()
+    plane.SetOrigin((bounds[1] + bounds[0]) / 2.0,
+                    (bounds[3] + bounds[2]) / 2.0, bounds[4])
+    plane.SetNormal(0, 0, 1)
 
-    number_of_cuts = int((bounds[5] - bounds[4]) / spacing)
+    # Create cutter
+    cutter = vtkCutter()
+    cutter.SetInputConnection(skin_filter.GetOutputPort())
+    cutter.SetCutFunction(plane)
+    # Generate the cut at a specific height
+    cutter.GenerateValues(number_of_cuts, 0, height)
 
-    append_filter = vtkAppendPolyData()
+    # Apply vtkStripper to generate polylines from the cutter
+    stripper = vtkStripper()
+    stripper.SetInputConnection(cutter.GetOutputPort())
+    stripper.Update()
 
-    for i in range(number_of_cuts):
-        # Create a plane at the desired height
-        plane = vtkPlane()
-        plane.SetOrigin((bounds[1] + bounds[0]) / 2.0,
-                        (bounds[3] + bounds[2]) / 2.0, bounds[4] + i * spacing)
-        plane.SetNormal(0, 0, 1)
-
-        # Create cutter
-        cutter = vtkCutter()
-        cutter.SetInputConnection(skin_filter.GetOutputPort())
-        cutter.SetCutFunction(plane)
-        cutter.GenerateValues(1, 0.99, 0.99)
-
-        # Apply vtkStripper to generate polylines from the cutter
-        stripper = vtkStripper()
-        stripper.SetInputConnection(cutter.GetOutputPort())
-        stripper.Update()
-
-        # Add vtkTubeFilter to create tubes
-        tube_filter = vtkTubeFilter()
-        tube_filter.SetInputConnection(stripper.GetOutputPort())
-        tube_filter.SetRadius(0.5)
-        tube_filter.SetNumberOfSides(12)
-        tube_filter.CappingOn()
-
-        # Add each tube filter to the append filter
-        append_filter.AddInputConnection(tube_filter.GetOutputPort())
-
-    append_filter.Update()
+    # Add vtkTubeFilter to create tubes
+    tube_filter = vtkTubeFilter()
+    tube_filter.SetInputConnection(stripper.GetOutputPort())
+    tube_filter.SetRadius(1.0)
+    tube_filter.SetNumberOfSides(10)
+    tube_filter.CappingOn()
 
     # Create mapper and actor for the tubes
     cutter_mapper = vtkPolyDataMapper()
-    cutter_mapper.SetInputConnection(append_filter.GetOutputPort())
+    cutter_mapper.SetInputConnection(tube_filter.GetOutputPort())
     cutter_mapper.ScalarVisibilityOff()
 
     cutter_actor = vtkActor()
-    cutter_actor.GetProperty().SetColor(vtkNamedColors().GetColor3d('Banana'))
+    cutter_actor.GetProperty().SetColor(colors.GetColor3d('Skin'))
     cutter_actor.SetMapper(cutter_mapper)
 
     return cutter_actor
@@ -310,3 +302,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
