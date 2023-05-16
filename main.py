@@ -2,8 +2,10 @@ import vtk
 import vtkmodules.vtkInteractionStyle
 import vtkmodules.vtkRenderingOpenGL2
 from vtkmodules.vtkCommonColor import vtkNamedColors
+from vtkmodules.vtkCommonCore import vtkLookupTable
 from vtkmodules.vtkCommonDataModel import vtkPlane
 from vtkmodules.vtkFiltersCore import vtkContourFilter, vtkCutter, vtkTubeFilter, vtkStripper, vtkAppendPolyData
+from vtkmodules.vtkFiltersGeneral import vtkDistancePolyDataFilter
 from vtkmodules.vtkFiltersModeling import vtkOutlineFilter
 from vtkmodules.vtkIOImage import vtkSLCReader
 from vtkmodules.vtkRenderingCore import (
@@ -61,16 +63,18 @@ def create_skin_tubes(skin_filter, spacing):
     return cutter_actor
 
 
-def get_sources_functions(skin_mapper, bones_mapper, skin_filter):
+def get_sources_functions(gen_skin_mapper, gen_bones_mapper, skin_filter, bones_filter):
     return [
-        source1(skin_mapper, bones_mapper, skin_filter),
-        source4(skin_mapper, bones_mapper),
-        source3(bones_mapper, skin_filter),
-        source2(skin_mapper, bones_mapper, skin_filter),
+        source1(gen_skin_mapper, gen_bones_mapper, skin_filter),
+        source2(gen_skin_mapper, gen_bones_mapper, skin_filter),
+        source3(gen_bones_mapper, skin_filter),
+        source4(gen_bones_mapper, skin_filter, bones_filter),
     ]
 
 
-def source1(skin_mapper, bones_mapper, skin_filter):
+def source1(gen_skin_mapper, gen_bones_mapper, skin_filter):
+    skin_mapper = gen_skin_mapper();
+    bones_mapper = gen_bones_mapper();
     # Create a mapper and actor
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
@@ -118,7 +122,9 @@ def source1(skin_mapper, bones_mapper, skin_filter):
     return skin_actor, bones_actor, sphere_actor
 
 
-def source2(skin_mapper, bones_mapper, skin_filter):
+def source2(gen_skin_mapper, gen_bones_mapper, skin_filter):
+    skin_mapper = gen_skin_mapper();
+    bones_mapper = gen_bones_mapper();
     # Create a mapper and actor
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
@@ -153,56 +159,25 @@ def source2(skin_mapper, bones_mapper, skin_filter):
     return skin_actor, bones_actor
 
 
-def source3(bones_mapper, skin_filter):
+def source3(gen_bones_mapper, skin_filter):
+    bones_mapper = gen_bones_mapper();
     bones_actor = get_bones_actor(bones_mapper)
     tube_actor = create_skin_tubes(skin_filter, 10)
 
     return bones_actor, tube_actor
 
 
-def source4(skin_mapper, bones_mapper):
+def source4(gen_bones_mapper, skin_filter, bones_filter):
+    bones_mapper = gen_bones_mapper();
+    # Compute distance between skin and bones
+    # distance_filter = vtkDistancePolyDataFilter()
+    # distance_filter.SetInputConnection(0, bones_filter.GetOutputPort())
+    # distance_filter.SetInputConnection(1, skin_filter.GetOutputPort())
+    # distance_filter.Update()
+
+    # Create a mapper and actor
+
     bones_actor = get_bones_actor(bones_mapper)
-
-    implicitPolyDataDistance = vtkImplicitPolyDataDistance()
-    implicitPolyDataDistance.SetInput(sphereSource.bones_actor())
-
-    signedDistanceMapper = vtkPolyDataMapper()
-
-    points = vtkPoints()
-    step = 0.1
-    for x in np.arange(-2, 2, step):
-        for y in np.arange(-2, 2, step):
-            for z in np.arange(-2, 2, step):
-                points.InsertNextPoint(x, y, z)
-
-    # Add distances to each point
-    signedDistances = vtkFloatArray()
-    signedDistances.SetNumberOfComponents(1)
-    signedDistances.SetName('SignedDistances')
-
-    # Evaluate the signed distance function at all of the grid points
-    for pointId in range(points.GetNumberOfPoints()):
-        p = points.GetPoint(pointId)
-        signedDistance = implicitPolyDataDistance.EvaluateFunction(p)
-        signedDistances.InsertNextValue(signedDistance)
-
-    polyData = vtkPolyData()
-    polyData.SetPoints(points)
-    polyData.GetPointData().SetScalars(signedDistances)
-
-    vertexGlyphFilter = vtkVertexGlyphFilter()
-    vertexGlyphFilter.SetInputData(polyData)
-    vertexGlyphFilter.Update()
-
-    signedDistanceMapper = vtkPolyDataMapper()
-    signedDistanceMapper.SetInputConnection(vertexGlyphFilter.GetOutputPort())
-    signedDistanceMapper.ScalarVisibilityOn()
-
-    signedDistanceActor = vtkActor()
-    signedDistanceActor.SetMapper(signedDistanceMapper)
-
-    # TODO: implicit data distance between bones and skin
-
 
     return [bones_actor]
 
@@ -245,15 +220,19 @@ def main():
     bones_filter.SetInputConnection(reader.GetOutputPort())
     bones_filter.SetValue(50, 72)
 
-    skin_mapper = vtkPolyDataMapper()
-    skin_mapper.SetInputConnection(skin_filter.GetOutputPort())
-    skin_mapper.SetScalarVisibility(0)
+    def gen_skin_mapper():
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputConnection(skin_filter.GetOutputPort())
+        mapper.SetScalarVisibility(0)
+        return mapper
 
-    bones_mapper = vtkPolyDataMapper()
-    bones_mapper.SetInputConnection(bones_filter.GetOutputPort())
-    bones_mapper.SetScalarVisibility(0)
+    def gen_bones_mapper():
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputConnection(bones_filter.GetOutputPort())
+        mapper.SetScalarVisibility(0)
+        return mapper
 
-    sources = get_sources_functions(skin_mapper, bones_mapper, skin_filter)
+    sources = get_sources_functions(gen_skin_mapper, gen_bones_mapper, skin_filter, bones_filter)
 
     for i in range(len(sources)):
         ren = vtkRenderer()
@@ -317,4 +296,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
