@@ -1,3 +1,6 @@
+# VTK - Labo 3
+# Nicolas Crausaz & Maxime Scharwath
+
 import os
 import vtk
 import vtkmodules.vtkInteractionStyle
@@ -16,6 +19,9 @@ from vtkmodules.vtkRenderingCore import (
     vtkRenderWindowInteractor,
     vtkRenderer,
 )
+
+# Flag to force the recomputation of the distances
+FORCE_RECOMPUTE_DISTANCES = False
 
 colors = vtkNamedColors()
 colors.SetColor('Skin', [240, 184, 160, 255])
@@ -100,15 +106,17 @@ def create_skin_tubes(skin_filter, spacing):
 
 
 def create_skin_actor(skin_mapper):
+    # Create skin actor (external skin)
     skin_actor = vtkActor()
     skin_actor.SetMapper(skin_mapper)
     skin_actor.GetProperty().SetDiffuseColor(colors.GetColor3d('Skin'))
     skin_actor.GetProperty().SetOpacity(1.0)
 
+    # Define backface properties (internal skin)
     back_face_prop = vtkProperty()
     back_face_prop.SetDiffuseColor(colors.GetColor3d('Tomato'))
     back_face_prop.SetSpecular(0.8)
-    back_face_prop.SetSpecularPower(120.0)
+    back_face_prop.SetSpecularPower(100.0)
     back_face_prop.SetOpacity(1.0)
     skin_actor.SetBackfaceProperty(back_face_prop)
 
@@ -116,14 +124,13 @@ def create_skin_actor(skin_mapper):
 
 
 def source1(skin_mapper, bones_mapper, skin_filter):
-    # Create a mapper and actor
+    # Create a skin & bones actors
     skin_actor = create_skin_actor(skin_mapper)
-
     bones_actor = get_bones_actor(bones_mapper)
 
+    # Place a sphere trough the knee skin
     clip_transf = vtk.vtkTransform()
     clip_transf.Translate(-70, -50, -100)
-
     sphere = vtk.vtkSphere()
     sphere.SetRadius(50)
     sphere.SetTransform(clip_transf)
@@ -156,7 +163,7 @@ def source1(skin_mapper, bones_mapper, skin_filter):
 def source2(skin_mapper, bones_mapper, skin_filter):
     # Create a mapper and actor
     skin_actor = create_skin_actor(skin_mapper)
-    skin_actor.GetProperty().SetOpacity(0.5)
+    skin_actor.GetProperty().SetOpacity(0.6)
 
     bones_actor = get_bones_actor(bones_mapper)
 
@@ -187,7 +194,7 @@ def source3(bones_mapper, skin_filter):
 
 def source4(skin_filter, bones_filter):
     filename = "distance_filter.vtk"
-    if os.path.isfile(filename):
+    if not FORCE_RECOMPUTE_DISTANCES and os.path.isfile(filename):
         reader = vtk.vtkPolyDataReader()
         reader.SetFileName(filename)
         reader.Update()
@@ -239,18 +246,20 @@ def main():
     iren = vtkRenderWindowInteractor()
     iren.SetRenderWindow(render_window)
 
-    # Define viewport ranges.
+    # Define viewport ranges
     xmins = [0, 0.5, 0, 0.5]
     xmaxs = [0.5, 1, 0.5, 1]
     ymins = [0, 0, 0.5, 0.5]
     ymaxs = [0.5, 0.5, 1, 1]
 
-    backgrounds = ['LightBlue', 'Gray', 'Pink', 'Green']
+    backgrounds = ['LightBlue', 'Snow', 'Pink', 'Mint']
 
+    # Delimit the skin
     skin_filter = vtkContourFilter()
     skin_filter.SetInputConnection(reader.GetOutputPort())
     skin_filter.SetValue(0, 50)
 
+    # Delimit the bone
     bones_filter = vtkContourFilter()
     bones_filter.SetInputConnection(reader.GetOutputPort())
     bones_filter.SetValue(50, 72)
@@ -287,7 +296,7 @@ def main():
         else:
             ren.SetActiveCamera(camera)
 
-        # Create an edge cube using bounds
+        # Create an wrapping edge cube using bounds
         edges = vtkOutlineFilter()
         edges.SetInputConnection(reader.GetOutputPort())
 
@@ -305,11 +314,12 @@ def main():
         for actor in actors:
             ren.AddActor(actor)
 
+        # Set the camera position (front view)
         cam1 = ren.GetActiveCamera()
         cam1.SetFocalPoint(0.0, 0.0, 0.0)
         cam1.SetPosition(0.0, -1.0, 0.0)
         cam1.SetViewUp(0.0, 0.0, -1.0)
-        cam1.Azimuth(-90.0)
+        cam1.Azimuth(0.0)
         ren.ResetCamera()
         ren.ResetCameraClippingRange()
 
